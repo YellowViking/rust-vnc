@@ -8,12 +8,13 @@ extern crate octavo;
 #[cfg(feature = "apple-auth")]
 extern crate crypto;
 
-mod protocol;
+pub mod protocol;
 mod zrle;
 mod security;
 
 pub mod client;
 pub mod proxy;
+
 
 pub use protocol::{PixelFormat, Colour, Encoding};
 pub use client::Client;
@@ -47,7 +48,8 @@ impl std::fmt::Display for Error {
                 write!(f, "server error: {}", descr),
             Error::AuthenticationFailure(ref descr) =>
                 write!(f, "authentication failure: {}", descr),
-            _ => f.write_str(&self.to_string())
+            (x) =>
+                write!(f, "{:?}", x)
         }
     }
 }

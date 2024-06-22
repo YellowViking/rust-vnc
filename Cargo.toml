@@ -1,5 +1,5 @@
 [package]
-name = "vnc"
+name = "rust-vnc"
 version = "0.4.0"
 authors = ["whitequark <whitequark@whitequark.org>"]
 license = "MIT/Apache-2.0"
@@ -21,6 +21,13 @@ num-bigint = { version = "*", optional = true }
 # Diffie-Hellman key exchange only in octavo > 0.1.1
 octavo = { git = "https://github.com/libOctavo/octavo", rev = "d94d924616dca83b9c6cfc815062276c5908713a", optional = true }
 rust-crypto = { version = "0.2.36", optional = true }
+clap = "4.5.7"
+env_logger = "0.11.3"
 
 [workspace]
 members = ["client", "proxy"]
+
+[lib]
+crate-type = ["lib"]
+name = "rust_vnc_lib"
+path = "src/lib.rs"

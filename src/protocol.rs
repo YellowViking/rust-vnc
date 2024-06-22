@@ -540,6 +540,7 @@ impl Message for Colour {
 #[derive(Debug)]
 pub enum S2C {
     // core spec
+
     FramebufferUpdate {
         count:        u16,
         /* Vec<Rectangle> has to be read out manually */
