@@ -23,11 +23,7 @@ octavo = { git = "https://github.com/libOctavo/octavo", rev = "d94d924616dca83b9
 rust-crypto = { version = "0.2.36", optional = true }
 clap = "4.5.7"
 env_logger = "0.11.3"
+bitflags = "2.5.0"
 
 [workspace]
 members = ["client", "proxy"]
-
-[lib]
-crate-type = ["lib"]
-name = "rust_vnc_lib"
-path = "src/lib.rs"

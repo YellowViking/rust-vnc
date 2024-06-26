@@ -1,3 +1,4 @@
+use bitflags::bitflags;
 use std::io::{ErrorKind as IoErrorKind, Read, Write};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use crate::{Error, Result};
@@ -364,7 +365,17 @@ impl Message for Encoding {
     }
 }
 
-#[derive(Debug)]
+bitflags! {
+    #[derive(Default, Debug, PartialEq, Clone, Copy)]
+    pub struct ButtonMaskFlags :u8 {
+        const LEFT   = 0b0001;
+        const MIDDLE = 0b0010;
+        const RIGHT  = 0b0100;
+        const WHEEL_UP  = 0b1000;
+        const WHEEL_DOWN  = 0b10000;
+    }
+}
+#[derive(Debug, PartialEq)]
 pub enum C2S {
     // core spec
     SetPixelFormat(PixelFormat),
@@ -381,7 +392,7 @@ pub enum C2S {
         key:         u32,
     },
     PointerEvent {
-        button_mask: u8,
+        button_mask: ButtonMaskFlags,
         x_position:  u16,
         y_position:  u16
     },
@@ -428,7 +439,7 @@ impl Message for C2S {
             },
             5 => {
                 Ok(C2S::PointerEvent {
-                    button_mask: reader.read_u8()?,
+                    button_mask: ButtonMaskFlags::from_bits_retain(reader.read_u8()?),
                     x_position:  reader.read_u16::<BigEndian>()?,
                     y_position:  reader.read_u16::<BigEndian>()?
                 })
@@ -471,7 +482,7 @@ impl Message for C2S {
             },
             C2S::PointerEvent { button_mask, x_position, y_position } => {
                 writer.write_u8(5)?;
-                writer.write_u8(*button_mask)?;
+                writer.write_u8(button_mask.bits())?;
                 writer.write_u16::<BigEndian>(*x_position)?;
                 writer.write_u16::<BigEndian>(*y_position)?;
             },

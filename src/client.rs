@@ -9,6 +9,7 @@ use protocol::Message;
 use crate::security::des;
 #[cfg(feature = "apple-auth")]
 use security::apple_auth;
+use crate::protocol::ButtonMaskFlags;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -343,7 +344,7 @@ impl Client {
 
     pub fn send_pointer_event(&mut self, buttons: u8, x: u16, y: u16) -> Result<()> {
         let pointer_event = protocol::C2S::PointerEvent {
-            button_mask: buttons,
+            button_mask: ButtonMaskFlags::from_bits_retain(buttons),
             x_position:  x,
             y_position:  y
         };

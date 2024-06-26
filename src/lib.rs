@@ -48,7 +48,7 @@ impl std::fmt::Display for Error {
                 write!(f, "server error: {}", descr),
             Error::AuthenticationFailure(ref descr) =>
                 write!(f, "authentication failure: {}", descr),
-            (x) =>
+            x =>
                 write!(f, "{:?}", x)
         }
     }
