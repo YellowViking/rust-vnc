@@ -9,7 +9,7 @@ use protocol::Message;
 use crate::security::des;
 #[cfg(feature = "apple-auth")]
 use security::apple_auth;
-use crate::protocol::ButtonMaskFlags;
+use crate::protocol::{ButtonMaskFlags, Encoding};
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -85,60 +85,62 @@ impl Event {
                             width:  rectangle.width,
                             height: rectangle.height
                         };
-                        match rectangle.encoding {
-                            protocol::Encoding::Raw => {
-                                let length = (rectangle.width as usize) *
-                                             (rectangle.height as usize) *
-                                             (format.bits_per_pixel as usize / 8);
-                                let mut pixels = Vec::with_capacity(length);
-                                unsafe { pixels.set_len(length as usize) }
-                                stream.read_exact(&mut pixels)?;
-                                debug!("<- ...pixels");
-                                send!(tx_events, Event::PutPixels(dst, pixels))
-                            },
-                            protocol::Encoding::CopyRect => {
-                                let copy_rect = protocol::CopyRect::read_from(&mut stream)?;
-                                let src = Rect {
-                                    left:   copy_rect.src_x_position,
-                                    top:    copy_rect.src_y_position,
-                                    width:  rectangle.width,
-                                    height: rectangle.height
-                                };
-                                send!(tx_events, Event::CopyPixels { src, dst })
-                            },
-                            protocol::Encoding::Zrle => {
-                                let length = stream.read_u32::<BigEndian>()?;
-                                let mut data = Vec::with_capacity(length as usize);
-                                unsafe { data.set_len(length as usize) }
-                                stream.read_exact(&mut data)?;
-                                debug!("<- ...compressed pixels");
-                                let result = zrle_decoder.decode(format, dst, &data,
-                                    |tile, pixels| {
-                                        Ok(tx_events.send(Event::PutPixels(tile, pixels)).is_ok())
-                                    })?;
-                                if !result { break }
-                            }
-                            protocol::Encoding::Cursor => {
-                                let mut pixels    = vec![0; (rectangle.width as usize) *
-                                                            (rectangle.height as usize) *
-                                                            (format.bits_per_pixel as usize / 8)];
-                                stream.read_exact(&mut pixels)?;
-                                let mut mask_bits = vec![0; ((rectangle.width as usize + 7) / 8) *
-                                                            (rectangle.height as usize)];
-                                stream.read_exact(&mut mask_bits)?;
-                                send!(tx_events, Event::SetCursor {
+                        if let Encoding::Known(encoding) = rectangle.encoding {
+                            match encoding {
+                                protocol::KnownEncoding::Raw => {
+                                    let length = (rectangle.width as usize) *
+                                        (rectangle.height as usize) *
+                                        (format.bits_per_pixel as usize / 8);
+                                    let mut pixels = Vec::with_capacity(length);
+                                    unsafe { pixels.set_len(length as usize) }
+                                    stream.read_exact(&mut pixels)?;
+                                    debug!("<- ...pixels");
+                                    send!(tx_events, Event::PutPixels(dst, pixels))
+                                },
+                                protocol::KnownEncoding::CopyRect => {
+                                    let copy_rect = protocol::CopyRect::read_from(&mut stream)?;
+                                    let src = Rect {
+                                        left:   copy_rect.src_x_position,
+                                        top:    copy_rect.src_y_position,
+                                        width:  rectangle.width,
+                                        height: rectangle.height
+                                    };
+                                    send!(tx_events, Event::CopyPixels { src, dst })
+                                },
+                                protocol::KnownEncoding::Zrle => {
+                                    let length = stream.read_u32::<BigEndian>()?;
+                                    let mut data = Vec::with_capacity(length as usize);
+                                    unsafe { data.set_len(length as usize) }
+                                    stream.read_exact(&mut data)?;
+                                    debug!("<- ...compressed pixels");
+                                    let result = zrle_decoder.decode(format, dst, &data,
+                                                                     |tile, pixels| {
+                                                                         Ok(tx_events.send(Event::PutPixels(tile, pixels)).is_ok())
+                                                                     })?;
+                                    if !result { break }
+                                }
+                                protocol::KnownEncoding::Cursor => {
+                                    let mut pixels    = vec![0; (rectangle.width as usize) *
+                                        (rectangle.height as usize) *
+                                        (format.bits_per_pixel as usize / 8)];
+                                    stream.read_exact(&mut pixels)?;
+                                    let mut mask_bits = vec![0; ((rectangle.width as usize + 7) / 8) *
+                                        (rectangle.height as usize)];
+                                    stream.read_exact(&mut mask_bits)?;
+                                    send!(tx_events, Event::SetCursor {
                                     size:      (rectangle.width, rectangle.height),
                                     hotspot:   (rectangle.x_position, rectangle.y_position),
                                     pixels,
                                     mask_bits,
                                 })
-                            },
-                            protocol::Encoding::DesktopSize => {
-                                send!(tx_events,
+                                },
+                                protocol::KnownEncoding::DesktopSize => {
+                                    send!(tx_events,
                                     Event::Resize(rectangle.width, rectangle.height))
-                            }
-                            _ => return Err(Error::Unexpected("encoding"))
-                        };
+                                }
+                                _ => return Err(Error::Unexpected("encoding"))
+                            };
+                        }
                     }
 
                     send!(tx_events, Event::EndOfFrame);

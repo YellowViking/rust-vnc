@@ -1,7 +1,9 @@
 use bitflags::bitflags;
 use std::io::{ErrorKind as IoErrorKind, Read, Write};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use num_traits::{FromPrimitive, ToPrimitive};
 use crate::{Error, Result};
+
 
 pub trait Message {
     fn read_from<R: Read>(reader: &mut R) -> Result<Self> where Self: Sized;
@@ -320,45 +322,64 @@ impl Message for CopyRect {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+pub enum KnownEncoding {
+    // core spec
+    Raw = 0,
+    CopyRect = 1,
+    Rre = 2,
+    Hextile = 5,
+    Zlib = 6,
+    Tight = 7,
+    ZlibHex = 8,
+    Zrle = 16,
+    Cursor = -239,
+    DesktopSize = -223,
+    // extensions
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Encoding {
     Unknown(i32),
-    // core spec
-    Raw,
-    CopyRect,
-    Rre,
-    Hextile,
-    Zrle,
-    Cursor,
-    DesktopSize,
-    // extensions
+    Known(KnownEncoding)
+}
+
+impl From<i32> for Encoding {
+    fn from(n: i32) -> Encoding {
+        match KnownEncoding::from_i32(n) {
+            Some(known_encoding) => Encoding::Known(known_encoding),
+            None => Encoding::Unknown(n)
+        }
+    }
+
+}
+
+impl Into<i32> for Encoding {
+    fn into(self) -> i32 {
+        match self {
+            Encoding::Unknown(n) => n,
+            Encoding::Known(known_encoding) => known_encoding.to_i32().unwrap()
+        }
+    }
 }
 
 impl Message for Encoding {
     fn read_from<R: Read>(reader: &mut R) -> Result<Encoding> {
         let encoding = reader.read_i32::<BigEndian>()?;
-        match encoding {
-            0    => Ok(Encoding::Raw),
-            1    => Ok(Encoding::CopyRect),
-            2    => Ok(Encoding::Rre),
-            5    => Ok(Encoding::Hextile),
-            16   => Ok(Encoding::Zrle),
-            -239 => Ok(Encoding::Cursor),
-            -223 => Ok(Encoding::DesktopSize),
-            n    => Ok(Encoding::Unknown(n))
+        match KnownEncoding::from_i32(encoding) {
+            None => {
+                Ok(Encoding::Unknown(encoding))
+            },
+            Some(known_encoding) => {
+                Ok(Encoding::Known(known_encoding))
+            }
         }
     }
 
     fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
         let encoding = match self {
-            Encoding::Raw => 0,
-            Encoding::CopyRect => 1,
-            Encoding::Rre => 2,
-            Encoding::Hextile => 5,
-            Encoding::Zrle => 16,
-            Encoding::Cursor => -239,
-            Encoding::DesktopSize => -223,
-            Encoding::Unknown(n) => *n
+            Encoding::Unknown(n) => *n,
+            Encoding::Known(known_encoding) => known_encoding.to_i32().unwrap()
         };
         writer.write_i32::<BigEndian>(encoding)?;
         Ok(())
@@ -500,7 +521,7 @@ pub struct Rectangle {
     pub y_position: u16,
     pub width:      u16,
     pub height:     u16,
-    pub encoding:   Encoding,
+    pub encoding: Encoding,
 }
 
 impl Message for Rectangle {

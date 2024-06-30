@@ -24,6 +24,8 @@ rust-crypto = { version = "0.2.36", optional = true }
 clap = "4.5.7"
 env_logger = "0.11.3"
 bitflags = "2.5.0"
+num-traits = "0.2.19"
+num-derive = "0.4.2"
 
 [workspace]
 members = ["client", "proxy"]

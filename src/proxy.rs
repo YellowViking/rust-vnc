@@ -2,7 +2,7 @@ use std::io::{Read, Write, Cursor};
 use std::net::{TcpStream, Shutdown};
 use std::thread;
 use crate::{Error, Result};
-use crate::protocol::{self, Message};
+use crate::protocol::{self, Encoding, Message};
 
 pub struct Proxy {
     c2s_thread: thread::JoinHandle<Result<()>>,
@@ -127,16 +127,24 @@ impl Proxy {
         fn forward_c2s(server_stream: &mut TcpStream, client_stream: &mut TcpStream) ->
                 Result<()> {
             fn encoding_supported(encoding: &protocol::Encoding) -> bool {
-                match encoding {
-                    &protocol::Encoding::Raw |
-                    &protocol::Encoding::CopyRect |
-                    &protocol::Encoding::Zrle |
-                    &protocol::Encoding::Cursor |
-                    &protocol::Encoding::DesktopSize => true,
-                    encoding => {
-                        warn!("encoding {:?} is not supported", encoding);
-                        false
+                if let Encoding::Known(encoding) = encoding
+                {
+                    match encoding {
+                        &protocol::KnownEncoding::Raw |
+                        &protocol::KnownEncoding::CopyRect |
+                        &protocol::KnownEncoding::Zrle |
+                        &protocol::KnownEncoding::Cursor |
+                        &protocol::KnownEncoding::DesktopSize => true,
+                        encoding => {
+                            warn!("encoding {:?} is not supported", encoding);
+                            false
+                        }
                     }
+                }
+                else
+                {
+                    warn!("encoding {:?} is not supported", encoding);
+                    false
                 }
             }
 
@@ -180,41 +188,42 @@ impl Proxy {
                             let rectangle = protocol::Rectangle::read_from(server_stream)?;
                             debug!("c<-s {:?}", rectangle);
                             protocol::Rectangle::write_to(&rectangle, &mut buffer_stream)?;
-
-                            match rectangle.encoding {
-                                protocol::Encoding::Raw => {
-                                    let mut pixels = vec![0; (rectangle.width as usize) *
-                                                             (rectangle.height as usize) *
-                                                             (format.bits_per_pixel as usize / 8)];
-                                    server_stream.read_exact(&mut pixels)?;
-                                    debug!("c<-s ...raw pixels");
-                                    buffer_stream.write_all(&pixels)?;
-                                },
-                                protocol::Encoding::CopyRect => {
-                                    let copy_rect =
-                                        protocol::CopyRect::read_from(server_stream)?;
-                                    debug!("c<-s {:?}", copy_rect);
-                                    protocol::CopyRect::write_to(&copy_rect,
-                                                                      &mut buffer_stream)?;
-                                },
-                                protocol::Encoding::Zrle => {
-                                    let zrle = Vec::<u8>::read_from(server_stream)?;
-                                    debug!("c<-s ...ZRLE pixels");
-                                    Vec::<u8>::write_to(&zrle, &mut buffer_stream)?;
+                            if let protocol::Encoding::Known(encoding) = rectangle.encoding {
+                                match encoding {
+                                    protocol::KnownEncoding::Raw => {
+                                        let mut pixels = vec![0; (rectangle.width as usize) *
+                                            (rectangle.height as usize) *
+                                            (format.bits_per_pixel as usize / 8)];
+                                        server_stream.read_exact(&mut pixels)?;
+                                        debug!("c<-s ...raw pixels");
+                                        buffer_stream.write_all(&pixels)?;
+                                    },
+                                    protocol::KnownEncoding::CopyRect => {
+                                        let copy_rect =
+                                            protocol::CopyRect::read_from(server_stream)?;
+                                        debug!("c<-s {:?}", copy_rect);
+                                        protocol::CopyRect::write_to(&copy_rect,
+                                                                     &mut buffer_stream)?;
+                                    },
+                                    protocol::KnownEncoding::Zrle => {
+                                        let zrle = Vec::<u8>::read_from(server_stream)?;
+                                        debug!("c<-s ...ZRLE pixels");
+                                        Vec::<u8>::write_to(&zrle, &mut buffer_stream)?;
+                                    }
+                                    protocol::KnownEncoding::Cursor => {
+                                        let mut pixels = vec![0; (rectangle.width as usize) *
+                                            (rectangle.height as usize) *
+                                            (format.bits_per_pixel as usize / 8)];
+                                        server_stream.read_exact(&mut pixels)?;
+                                        buffer_stream.write_all(&pixels)?;
+                                        let mut mask_bits = vec![0; ((rectangle.width as usize + 7) / 8) *
+                                            (rectangle.height as usize)];
+                                        server_stream.read_exact(&mut mask_bits)?;
+                                        buffer_stream.write_all(&mask_bits)?;
+                                    },
+                                    protocol::KnownEncoding::DesktopSize => (),
+                                    _ => return Err(Error::Unexpected("encoding"))
                                 }
-                                protocol::Encoding::Cursor => {
-                                    let mut pixels    = vec![0; (rectangle.width as usize) *
-                                                                (rectangle.height as usize) *
-                                                                (format.bits_per_pixel as usize / 8)];
-                                    server_stream.read_exact(&mut pixels)?;
-                                    buffer_stream.write_all(&pixels)?;
-                                    let mut mask_bits = vec![0; ((rectangle.width as usize + 7) / 8) *
-                                                                (rectangle.height as usize)];
-                                    server_stream.read_exact(&mut mask_bits)?;
-                                    buffer_stream.write_all(&mask_bits)?;
-                                },
-                                protocol::Encoding::DesktopSize => (),
-                                _ => return Err(Error::Unexpected("encoding"))
                             }
                         }
                     },

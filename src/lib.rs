@@ -7,7 +7,7 @@ extern crate num_bigint;
 extern crate octavo;
 #[cfg(feature = "apple-auth")]
 extern crate crypto;
-
+#[macro_use] extern crate num_derive;
 pub mod protocol;
 mod zrle;
 mod security;
@@ -16,7 +16,7 @@ pub mod client;
 pub mod proxy;
 
 
-pub use protocol::{PixelFormat, Colour, Encoding};
+pub use protocol::{PixelFormat, Colour, KnownEncoding};
 pub use client::Client;
 pub use proxy::Proxy;
 
