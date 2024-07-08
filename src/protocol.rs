@@ -55,6 +55,7 @@ impl Message for Version {
     fn read_from<R: Read>(reader: &mut R) -> Result<Version> {
         let mut buf = [0; 12];
         reader.read_exact(&mut buf)?;
+        trace!("buf: {:?}", buf);
         match &buf {
             b"RFB 003.003\n" => Ok(Version::Rfb33),
             b"RFB 003.007\n" => Ok(Version::Rfb37),
