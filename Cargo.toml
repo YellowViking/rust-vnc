@@ -14,9 +14,9 @@ edition = "2018"
 apple-auth = ["num-bigint", "octavo", "rust-crypto"]
 
 [dependencies]
-log = "0.3"
-byteorder = "0.5"
-flate2 = "0.2.13"
+log = "0.4.22"
+byteorder = "1.5.0"
+flate2 = "1.0.30"
 num-bigint = { version = "*", optional = true }
 # Diffie-Hellman key exchange only in octavo > 0.1.1
 octavo = { git = "https://github.com/libOctavo/octavo", rev = "d94d924616dca83b9c6cfc815062276c5908713a", optional = true }
